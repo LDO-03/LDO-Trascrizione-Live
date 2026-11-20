@@ -117,7 +117,7 @@ def salva_conferenza(bozza, nome):
         scrivi(f"La bozza di sicurezza è intatta in: {bozza}")
 
 
-def carica_trascrittore(modello_nome):
+def carica_trascrittore(modello_nome, motore_scelto="auto"):
     """Motore primario Qwen3-ASR bf16; di riserva Parakeet TDT v3, poi Whisper turbo su MLX, poi faster-whisper.
     I modelli MLX vengono caricati al primo audio, dentro il thread di trascrizione:
     MLX lega gli stream al thread che li crea."""
@@ -169,7 +169,22 @@ def carica_trascrittore(modello_nome):
             return " ".join(s.text.strip() for s in segmenti)
         return trascrivi
 
-    caricatori = [("Qwen3-ASR bf16", carica_qwen), ("Parakeet TDT v3", carica_parakeet)]
+    def ram_gb():
+        try:
+            import subprocess
+            return int(subprocess.check_output(["sysctl", "-n", "hw.memsize"]).strip()) / 2**30
+        except Exception:
+            return 16.0
+
+    qwen = ("Qwen3-ASR bf16", carica_qwen)
+    parakeet = ("Parakeet TDT v3", carica_parakeet)
+    if motore_scelto == "qwen":
+        caricatori = [qwen, parakeet]
+    elif motore_scelto == "parakeet":
+        caricatori = [parakeet, qwen]
+    else:
+        # Qwen bf16 occupa ~4 GB: sotto i 16 GB di RAM il Mac va in swap e rallenta
+        caricatori = [qwen, parakeet] if ram_gb() >= 15 else [parakeet, qwen]
     stato = {"attivo": None, "fallito": set(), "whisper": None}
 
     def trascrivi(audio):
@@ -293,6 +308,8 @@ def main():
     p.add_argument("--esporta", default=None, help="esporta una bozza esistente in .docx e termina")
     p.add_argument("--device", type=int, default=None, help="indice del microfono")
     p.add_argument("--modello", default="large-v3-turbo")
+    p.add_argument("--motore", choices=["auto", "qwen", "parakeet"], default="auto",
+                   help="motore di trascrizione (auto: Qwen se RAM >= 16 GB, altrimenti Parakeet)")
     p.add_argument("--pausa-capoverso", type=float, default=0.8)
     p.add_argument("--pausa-frase", type=int, default=500)
     p.add_argument("--max-frase", type=float, default=12.0)
@@ -315,7 +332,7 @@ def main():
 
     modalita, dato = scegli_sorgente()
     caffe = tieni_sveglio()
-    trascrivi_audio, motore = carica_trascrittore(args.modello)
+    trascrivi_audio, motore = carica_trascrittore(args.modello, args.motore)
     if modalita == "file":
         try:
             trascrivi_file(dato, args, bf, trascrivi_audio, inizio_registrazione(dato))

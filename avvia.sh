@@ -59,6 +59,6 @@ read -r _
 TXT
 chmod +x "$LEGENDA"
 open -a Terminal "$LEGENDA"
-"$VENV/bin/python" "$APP_DIR/live_transcribe.py" --nome "$NOME" --bozze "$SUP/bozze"
+"$VENV/bin/python" "$APP_DIR/live_transcribe.py" --nome "$NOME" --bozze "$SUP/bozze" --motore "${LDO_MOTORE:-auto}"
 echo
 read -r -p "Premi Invio per chiudere la finestra..."
