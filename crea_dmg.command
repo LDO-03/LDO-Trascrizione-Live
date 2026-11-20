@@ -16,6 +16,12 @@ if [ -f icona.png ]; then
   done
   iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/applet.icns"
 fi
+# osacompile mette un'icona predefinita in Assets.car e la cita in CFBundleIconName: macOS la preferisce
+# ad applet.icns, quindi l'icona personalizzata non si vede. La togliamo e rifirmiamo l'app.
+rm -f "$APP/Contents/Resources/Assets.car"
+/usr/libexec/PlistBuddy -c "Delete :CFBundleIconName" "$APP/Contents/Info.plist" 2>/dev/null
+codesign --force --deep --sign - "$APP" 2>/dev/null
+touch "$APP"
 xattr -cr "$APP" 2>/dev/null
 STAGE="$BUILD/dmg"; mkdir -p "$STAGE"
 cp -R "$APP" "$STAGE/"; ln -s /Applications "$STAGE/Applicazioni"
